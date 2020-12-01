@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>在线表格</title>
+</head>
+
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<!-- luckysheet -->
+<link rel='stylesheet' href='luckysheet/plugins/css/pluginsCss.css' />
+<link rel='stylesheet' href='luckysheet/plugins/plugins.css' />
+<link rel='stylesheet' href='luckysheet/css/luckysheet.css' />
+<link rel='stylesheet' href='luckysheet/assets/iconfont/iconfont.css' />
+<script src="luckysheet/plugins/js/plugin.js"></script>
+<script src="luckysheet/luckysheet.umd.js"></script>
+<!-- zTree -->
+<link rel="stylesheet" href="css/demo.css" type="text/css">
+<link rel="stylesheet" href="css/metroStyle.css" type="text/css">
+<!-- <script type="text/javascript" src="js/jquery-1.4.4.min.js"></script> luckysheet自带2.4.4版本jQuery-->
+<script type="text/javascript" src="js/jquery.ztree.core.min.js"></script>
+<script type="text/javascript" src="js/jquery.ztree.excheck.min.js"></script>
+<script type="text/javascript" src="js/jquery.ztree.exedit.min.js"></script>
+<body>
+<!--<button onclick="clicks()">保存</button>-->
+<div id="luckysheet" style="margin:0px;padding:0px;position:absolute;width:100%;height:100%;left: 0px;top: 0px;"></div>
+
+</body>
+<script src="luckysheet/demoData/demoFeature.js"></script>
+<script src="luckysheet/demoData/sheetFormula.js"></script>
+<script src="luckysheet/demoData/sheetCell.js"></script>
+<script src="luckysheet/demoData/sheetConditionFormat.js"></script>
+<script src="luckysheet/demoData/sheetTable.js"></script>
+<script src="luckysheet/demoData/sheetComment.js"></script>
+<script src="luckysheet/demoData/sheetPivotTableData.js"></script>
+<script src="luckysheet/demoData/sheetPivotTable.js"></script>
+<script src="luckysheet/demoData/sheetSparkline.js"></script>
+<script src="luckysheet/demoData/sheetChart.js"></script>
+<script src="luckysheet/demoData/sheetPicture.js"></script>
+<script src="luckysheet/demoData/sheetDataVerification.js"></script>
+
+<script>
+    //loadUrl是返回luckysheet 数据的后台api接口
+    var options = {
+        container: 'luckysheet', //luckysheet为容器id
+        title: '测试下载', // 设定表格名称
+        lang: 'zh', // 设定表格语言
+        allowEdit: true,//作用：是否允许前台编辑
+        showinfobar: true,//作用：是否显示顶部信息栏
+        myFolderUrl: "",//作用：左上角<返回按钮的链接
+        functionButton: '<button id="" class="btn btn-primary btn-danger" style=" padding:3px 6px; font-size: 12px; margin-right: 85px;" onclick="downExcelData()">下载</button>',
+        loadUrl: "",
+    }
+    $(function () {
+        //配置项
+
+        luckysheet.create(options)
+    })
+
+
+
+    function downExcelData() {
+        //这里你要自己写个后台接口，处理上传上来的Excel数据，用post传输。我用的是Java后台处理导出！这里只是写了post请求的写法
+        console.log("luckysheet.getAllSheets() = " + JSON.stringify(luckysheet.getAllSheets()))
+        // console.log("luckysheet.getRangeValue() = " + JSON.stringify(luckysheet.getRangeValue("A1:B3")))
+        // console.log("luckysheet.getRangeHtml() = " + luckysheet.getRangeHtml())
+        var jsdata = new Array();
+        var sheets = luckysheet.getAllSheets();
+        for (var i = 0; i < sheets.length; i++) {
+            jsdata.push({
+                "name": sheets[i].name,
+                "celldata": sheets[i].celldata,
+                "config": sheets[i].config,
+                "images": sheets[i].images,
+                "frozen": sheets[i].frozen,
+                "dataVerification": sheets[i].dataVerification,
+
+            });
+        }
+        console.log("JSON.stringify(jsdata) = " + JSON.stringify(jsdata))
+        var form = document.createElement("form");
+        form.method = 'post';
+        form.action = '/equipment/excel/downfile';
+        form.style = 'display:none';
+        form.enctype = 'multipart/form-data';
+        document.body.appendChild(form);
+        var newElement = document.createElement("textarea");
+        newElement.setAttribute("type","hidden");
+        newElement.name = "exceldata";
+        newElement.value = JSON.stringify(luckysheet.getAllSheets());
+        form.appendChild(newElement);
+        form.submit();
+    }
+</script>
+</html>
