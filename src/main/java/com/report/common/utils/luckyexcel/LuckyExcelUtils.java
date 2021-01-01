@@ -73,14 +73,14 @@ public class LuckyExcelUtils {
      */
     public static void exportExcel(String excelData, HttpServletRequest request, HttpServletResponse response) {
         // 解析对象，可以参照官方文档:https://mengshukeji.github.io/LuckysheetDocs/zh/guide/#%E6%95%B4%E4%BD%93%E7%BB%93%E6%9E%84
-        List<LuckySheet> luckySheets = JSON.parseArray(excelData, LuckySheet.class);
+        List<LuckySheet> luckySheets = LuckySheet.parseLuckySheetList(excelData);
         XSSFWorkbook workbook = new XSSFWorkbook();
         for (LuckySheet luckySheet : luckySheets) {
-            //默认高
+            // 默认高
             int defaultRowHeight = luckySheet.getDefaultRowHeight() == null ? 20 : luckySheet.getDefaultRowHeight();
-            //默认宽
+            // 默认宽
             int defaultColWidth = luckySheet.getDefaultColWidth() == null ? 74 : luckySheet.getDefaultColWidth();
-            //读取了模板内所有sheet内容
+            // 读取了模板内所有sheet内容
             XSSFSheet sheet = workbook.createSheet(luckySheet.getName());
             JSONObject columnlen = null;
             JSONObject rowlen = null;
@@ -98,7 +98,7 @@ public class LuckyExcelUtils {
             // 设置行高列宽
             setCellWH(sheet, columnlen, rowlen);
             // TODO 图片插入
-            setImages(workbook, sheet, null, columnlen, rowlen, defaultRowHeight, defaultColWidth);
+            // setImages(workbook, sheet, null, columnlen, rowlen, defaultRowHeight, defaultColWidth);
             // 设置单元格值及格式
             setCellValue(workbook, sheet, luckySheet.getCelldata(), columnlen, rowlen, defaultRowHeight, defaultColWidth);
             // TODO 设置数据验证
@@ -106,7 +106,7 @@ public class LuckyExcelUtils {
             // 设置边框
             setBorder(borderInfo, sheet);
         }
-        //如果只有一个sheet那就是get(0),有多个那就对应取下标
+        // 如果只有一个sheet那就是get(0),有多个那就对应取下标
         try {
             String disposition = "attachment;filename=";
             if (request != null && request.getHeader("USER-AGENT") != null && StringUtils.contains(request.getHeader("USER-AGENT"), "Firefox")) {
@@ -116,7 +116,7 @@ public class LuckyExcelUtils {
             }
             response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8");
             response.setHeader("Content-Disposition", disposition);
-            //修改模板内容导出新模板
+            // 修改模板内容导出新模板
             OutputStream out;
             out = response.getOutputStream();
             workbook.write(out);
@@ -124,7 +124,6 @@ public class LuckyExcelUtils {
         } catch (IOException e) {
             e.printStackTrace();
         }
-
     }
 
     public static String importExecl(InputStream is) throws IOException {
@@ -239,56 +238,60 @@ public class LuckyExcelUtils {
                 rgb[1] < 0 ? 256 + rgb[1] : rgb[1], rgb[2] < 0 ? 256 + rgb[2] : rgb[2]);
     }
 
-    private static CellStyle createCellStyle(XSSFSheet sheet, XSSFWorkbook wb, JSONObject jsonObjectValue) {
+    private static CellStyle createCellStyle(XSSFSheet sheet, XSSFWorkbook wb, JSONObject v) {
         XSSFCellStyle cellStyle = wb.createCellStyle();
-        //合并单元格
-        if (jsonObjectValue.get("mc") != null && ((JSONObject) jsonObjectValue.get("mc")).get("rs") != null && ((JSONObject) jsonObjectValue.get("mc")).get("cs") != null) {
-            int r = Integer.parseInt(((JSONObject) jsonObjectValue.get("mc")).get("r").toString());//主单元格的行号,开始行号
-            int rs = Integer.parseInt(((JSONObject) jsonObjectValue.get("mc")).get("rs").toString());//合并单元格占的行数,合并多少行
-            int c = Integer.parseInt(((JSONObject) jsonObjectValue.get("mc")).get("c").toString());//主单元格的列号,开始列号
-            int cs = Integer.parseInt(((JSONObject) jsonObjectValue.get("mc")).get("cs").toString());//合并单元格占的列数,合并多少列
+        // 合并单元格
+        if (v.get("mc") != null && ((JSONObject) v.get("mc")).get("rs") != null && ((JSONObject) v.get("mc")).get("cs") != null) {
+            // 主单元格的行号,开始行号
+            int r = Integer.parseInt(((JSONObject) v.get("mc")).get("r").toString());
+            // 合并单元格占的行数,合并多少行
+            int rs = Integer.parseInt(((JSONObject) v.get("mc")).get("rs").toString());
+            // 主单元格的列号,开始列号
+            int c = Integer.parseInt(((JSONObject) v.get("mc")).get("c").toString());
+            // 合并单元格占的列数,合并多少列
+            int cs = Integer.parseInt(((JSONObject) v.get("mc")).get("cs").toString());
             CellRangeAddress region = new CellRangeAddress(r, r + rs - 1, c, c + cs - 1);
             sheet.addMergedRegion(region);
         }
         XSSFFont font = wb.createFont();
-        //字体
-        if (jsonObjectValue.get("ff") != null) {
-            if (jsonObjectValue.get("ff").toString().matches("^(-?\\d+)(\\.\\d+)?$")) {
-                font.setFontName(CODE_FONT_MAP.get(jsonObjectValue.getInteger("ff")));
+        // 字体
+        if (v.get("ff") != null) {
+            if (v.get("ff").toString().matches("^(-?\\d+)(\\.\\d+)?$")) {
+                font.setFontName(CODE_FONT_MAP.get(v.getInteger("ff")));
             } else {
-                font.setFontName(jsonObjectValue.get("ff").toString());
+                font.setFontName(v.get("ff").toString());
             }
         }
-        //字体颜色
-        if (jsonObjectValue.get("fc") != null) {
-            String fc = jsonObjectValue.get("fc").toString();
+        // 字体颜色
+        if (v.get("fc") != null) {
+            String fc = v.get("fc").toString();
             XSSFColor color = toColorFromString(fc);
             font.setColor(color);
         }
-        //粗体
-        if (jsonObjectValue.get("bl") != null) {
-            font.setBold("1".equals(jsonObjectValue.get("bl").toString()));
+        // 粗体
+        if (v.get("bl") != null) {
+            font.setBold("1".equals(v.get("bl").toString()));
         }
-        //斜体
-        if (jsonObjectValue.get("it") != null) {
-            font.setItalic("1".equals(jsonObjectValue.get("it").toString()));
+        // 斜体
+        if (v.get("it") != null) {
+            font.setItalic("1".equals(v.get("it").toString()));
         }
-        //删除线
-        if (jsonObjectValue.get("cl") != null) {
-            font.setStrikeout("1".equals(jsonObjectValue.get("cl").toString()));
+        // 删除线
+        if (v.get("cl") != null) {
+            font.setStrikeout("1".equals(v.get("cl").toString()));
         }
-        //下滑线
-        if (jsonObjectValue.get("un") != null) {
-            font.setUnderline("1".equals(jsonObjectValue.get("un").toString()) ? FontUnderline.SINGLE : FontUnderline.NONE);
+        // 下滑线
+        if (v.get("un") != null) {
+            font.setUnderline("1".equals(v.get("un").toString()) ? FontUnderline.SINGLE : FontUnderline.NONE);
         }
-        //字体大小
-        if (jsonObjectValue.get("fs") != null) {
-            font.setFontHeightInPoints(new Short(jsonObjectValue.get("fs").toString()));
+        // 字体大小
+        if (v.get("fs") != null) {
+            font.setFontHeightInPoints(new Short(v.get("fs").toString()));
         }
         cellStyle.setFont(font);
-        //水平对齐
-        if (jsonObjectValue.get("ht") != null) {
-            switch (jsonObjectValue.getInteger("ht")) {
+        // 水平对齐
+        if (v.get("ht") != null) {
+            switch (v.getInteger("ht")) {
                 case 0:
                     cellStyle.setAlignment(HorizontalAlignment.CENTER);
                     break;
@@ -298,11 +301,13 @@ public class LuckyExcelUtils {
                 case 2:
                     cellStyle.setAlignment(HorizontalAlignment.RIGHT);
                     break;
+                default:
+                    break;
             }
         }
-        //垂直对齐
-        if (jsonObjectValue.get("vt") != null) {
-            switch (jsonObjectValue.getInteger("vt")) {
+        // 垂直对齐
+        if (v.get("vt") != null) {
+            switch (v.getInteger("vt")) {
                 case 0:
                     cellStyle.setVerticalAlignment(VerticalAlignment.CENTER);
                     break;
@@ -312,11 +317,13 @@ public class LuckyExcelUtils {
                 case 2:
                     cellStyle.setVerticalAlignment(VerticalAlignment.BOTTOM);
                     break;
+                default:
+                    break;
             }
         }
-        //背景颜色
-        if (jsonObjectValue.get("bg") != null) {
-            String bg = jsonObjectValue.get("bg").toString();
+        // 背景颜色
+        if (v.get("bg") != null) {
+            String bg = v.get("bg").toString();
             cellStyle.setFillForegroundColor(toColorFromString(bg));
             cellStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
         }
@@ -334,7 +341,7 @@ public class LuckyExcelUtils {
         if (colorStr.contains("#")) {
             colorStr = colorStr.substring(1);
             Color color = new Color(Integer.parseInt(colorStr, 16));
-            return new XSSFColor(color);
+            return new XSSFColor(color, new DefaultIndexedColorMap());
         } else {
             int strStartIndex = colorStr.indexOf("(");
             int strEndIndex = colorStr.indexOf(")");
@@ -347,7 +354,7 @@ public class LuckyExcelUtils {
             G = G.length() < 2 ? ('0' + G) : G;
             String cStr = R + B + G;
             Color color1 = new Color(Integer.parseInt(cStr, 16));
-            return new XSSFColor(color1);
+            return new XSSFColor(color1, new DefaultIndexedColorMap());
         }
     }
 
@@ -368,136 +375,129 @@ public class LuckyExcelUtils {
      * @param columnlen        columnlenObject
      * @param rowlen           rowlen
      */
-    private static Map<String, Integer> getColRowMap(JSONObject imageDefault, int defaultRowHeight, int defaultColWidth, JSONObject columnlen, JSONObject rowlen) {
-
-        int left = imageDefault.get("left") == null ? 0 : (int) imageDefault.get("left");
-        int top = imageDefault.get("top") == null ? 0 : (int) imageDefault.get("top");
-        int width = imageDefault.get("width") == null ? 0 : (int) imageDefault.get("width");
-        int height = imageDefault.get("height") == null ? 0 : (int) imageDefault.get("height");
-        //算起始最大列
+    private static Map<String, Integer> getAnchorMap(JSONObject imageDefault, int defaultRowHeight, int defaultColWidth, JSONObject columnlen, JSONObject rowlen) {
+        int left = imageDefault.getInteger("left") == null ? 0 : imageDefault.getInteger("left");
+        int top = imageDefault.getInteger("top") == null ? 0 : imageDefault.getInteger("top");
+        int width = imageDefault.getInteger("width") == null ? 0 : imageDefault.getInteger("width");
+        int height = imageDefault.getInteger("height") == null ? 0 : imageDefault.getInteger("height");
+        // 算起始最大列
         int colMax1 = (int) Math.ceil((double) left / defaultColWidth);
-        //算起始最大行
+        // 算起始最大行
         int rowMax1 = (int) Math.ceil((double) top / defaultRowHeight);
-        //算终止最大列
+        // 算终止最大列
         int colMax2 = (int) Math.ceil((double) (left + width) / defaultColWidth);
-        //算终止最大行
+        // 算终止最大行
         int rowMax2 = (int) Math.ceil((double) (top + height) / defaultRowHeight);
-//        int dx1 = left;//宽 行
-//        int dy1 = top; //高 列
-//        int dx2 = left+width;
-//        int dy2 = top+height;
-        BigDecimal dx1 = new BigDecimal(left);//宽 行
-        BigDecimal dy1 = new BigDecimal(top); //高 列
+        // 宽 行
+        BigDecimal dx1 = new BigDecimal(left);
+        // 高 列
+        BigDecimal dy1 = new BigDecimal(top);
         BigDecimal dx2 = new BigDecimal(left + width);
         BigDecimal dy2 = new BigDecimal(top + height);
         int col1 = 0;
         int row1 = 0;
         int col2 = 0;
         int row2 = 0;
-        //算起始列的序号和偏移量
+        // 算起始列的序号和偏移量
         for (int index = 0; index <= colMax1; index++) {
             BigDecimal col = null;
             if (columnlen != null && columnlen.getString(Integer.toString(index)) != null) {
-                col = new BigDecimal(columnlen.getString(Integer.toString(index)));//看当前列是否重新赋值
+                // 看当前列是否重新赋值
+                col = new BigDecimal(columnlen.getString(Integer.toString(index)));
             }
-            //算起始列
+            // 算起始列
             if (col == null && dx1.compareTo(new BigDecimal(defaultColWidth)) < 0) {
                 col1 = index;
                 break;
             }
-            //算起始X偏移
+            // 算起始X偏移
             if (col == null && dx1.compareTo(new BigDecimal(defaultColWidth)) >= 0) {
                 dx1 = dx1.subtract(new BigDecimal(defaultColWidth));
             }
-
-            //算起始列
+            // 算起始列
             if (col != null && dx1.compareTo(col) < 0) {
                 col1 = index;
                 break;
             }
-            //算起始X偏移
+            // 算起始X偏移
             if (col != null) {
                 dx1 = dx1.subtract(col);
             }
-
         }
-
-        //算起始行的序号和偏移量
+        // 算起始行的序号和偏移量
         for (int index = 0; index <= rowMax1; index++) {
             BigDecimal row = null;
             if (rowlen != null && rowlen.getString(Integer.toString(index)) != null) {
-                row = new BigDecimal(rowlen.getString(Integer.toString(index)));//看当前行是否重新赋值
+                // 看当前行是否重新赋值
+                row = new BigDecimal(rowlen.getString(Integer.toString(index)));
             }
-            //算起始行
+            // 算起始行
             if (row == null && dy1.compareTo(new BigDecimal(defaultRowHeight)) < 0) {
                 row1 = index;
                 break;
             }
-            //算起始y偏移
+            // 算起始y偏移
             if (row == null && dy1.compareTo(new BigDecimal(defaultRowHeight)) >= 0) {
                 dy1 = dy1.subtract(new BigDecimal(defaultRowHeight));
             }
-            //算起始行
+            // 算起始行
             if (row != null && dy1.compareTo(row) < 0) {
                 row1 = index;
                 break;
             }
-            //算起始y偏移
+            // 算起始y偏移
             if (row != null) {
                 dy1 = dy1.subtract(row);
             }
         }
-
-        //算最终列的序号和偏移量
+        // 算最终列的序号和偏移量
         for (int index = 0; index <= colMax2; index++) {
             BigDecimal col = null;
             if (columnlen != null && columnlen.getString(Integer.toString(index)) != null) {
-                col = new BigDecimal(columnlen.getString(Integer.toString(index)));//看当前列是否重新赋值
+                // 看当前列是否重新赋值
+                col = new BigDecimal(columnlen.getString(Integer.toString(index)));
             }
-            //算最终列
+            // 算最终列
             if (col == null && dx2.compareTo(new BigDecimal(defaultColWidth)) < 0) {
                 col2 = index;
                 break;
             }
-            //算最终X偏移
+            // 算最终X偏移
             if (col == null && dx2.compareTo(new BigDecimal(defaultColWidth)) >= 0) {
                 dx2 = dx2.subtract(new BigDecimal(defaultColWidth));
             }
-
-            //算最终列
+            // 算最终列
             if (col != null && dx2.compareTo(col) < 0) {
                 col2 = index;
                 break;
             }
-            //算最终X偏移
+            // 算最终X偏移
             if (col != null) {
                 dx2 = dx2.subtract(col);
             }
-
         }
-
-        //算最终行的序号和偏移量
+        // 算最终行的序号和偏移量
         for (int index = 0; index <= rowMax2; index++) {
-            //行高
+            // 行高
             BigDecimal row = null;
             if (rowlen != null && rowlen.getString(Integer.toString(index)) != null) {
-                row = new BigDecimal(rowlen.getString(Integer.toString(index)));//看当前行是否重新赋值
+                row = new BigDecimal(rowlen.getString(Integer.toString(index)));// 看当前行是否重新赋值
             }
-            //算最终行
+            // 算最终行
             if (row == null && dy2.compareTo(new BigDecimal(defaultRowHeight)) < 0) {
                 row2 = index;
                 break;
             }
-            //算最终y偏移
+            // 算最终y偏移
             if (row == null && dy2.compareTo(new BigDecimal(defaultRowHeight)) >= 0) {
                 dy2 = dy2.subtract(new BigDecimal(defaultRowHeight));
             }
-            //算最终行
+            // 算最终行
             if (row != null && dy2.compareTo(row) < 0) {
                 row2 = index;
                 break;
             }
-            //算最终Y偏移
+            // 算最终Y偏移
             if (row != null) {
                 dy2 = dy2.subtract(row);
             }
@@ -523,29 +523,29 @@ public class LuckyExcelUtils {
     private static void setFreezePane(XSSFSheet sheet, JSONObject frozen) {
         if (frozen != null) {
             Map<String, Object> frozenMap = frozen.getInnerMap();
-            //首行
+            // 首行
             if ("row".equals(frozenMap.get("type").toString())) {
                 sheet.createFreezePane(0, 1);
             }
-            //首列
+            // 首列
             if ("column".equals(frozenMap.get("type").toString())) {
                 sheet.createFreezePane(1, 0);
             }
-            //行列
+            // 行列
             if ("both".equals(frozenMap.get("type").toString())) {
                 sheet.createFreezePane(1, 1);
             }
-            //几行
+            // 几行
             if ("rangeRow".equals(frozenMap.get("type").toString())) {
                 JSONObject value = (JSONObject) frozenMap.get("range");
                 sheet.createFreezePane(0, value.getInteger("row_focus") + 1);
             }
-            //几列
+            // 几列
             if ("rangeColumn".equals(frozenMap.get("type").toString())) {
                 JSONObject value = (JSONObject) frozenMap.get("range");
                 sheet.createFreezePane(value.getInteger("column_focus") + 1, 0);
             }
-            //几行列
+            // 几行列
             if ("rangeBoth".equals(frozenMap.get("type").toString())) {
                 JSONObject value = (JSONObject) frozenMap.get("range");
                 sheet.createFreezePane(value.getInteger("column_focus") + 1, value.getInteger("row_focus") + 1);
@@ -561,28 +561,28 @@ public class LuckyExcelUtils {
      * @param rowlen    rowlen
      */
     private static void setCellWH(XSSFSheet sheet, JSONObject columnlen, JSONObject rowlen) {
-        //我们都知道excel是表格，即由一行一行组成的，那么这一行在java类中就是一个XSSFRow对象，我们通过XSSFSheet对象就可以创建XSSFRow对象
-        //如：创建表格中的第一行（我们常用来做标题的行)  XSSFRow firstRow = sheet.createRow(0); 注意下标从0开始
-        //根据luckysheet创建行列
-        //创建行和列
+        // 我们都知道excel是表格，即由一行一行组成的，那么这一行在java类中就是一个XSSFRow对象，我们通过XSSFSheet对象就可以创建XSSFRow对象
+        // 如：创建表格中的第一行（我们常用来做标题的行)  XSSFRow firstRow = sheet.createRow(0); 注意下标从0开始
+        // 根据luckysheet创建行列
+        // 创建行和列
         if (rowlen != null) {
             Map<String, Object> rowMap = rowlen.getInnerMap();
             for (Map.Entry<String, Object> rowEntry : rowMap.entrySet()) {
-                XSSFRow row = sheet.createRow(Integer.parseInt(rowEntry.getKey()));//创建行
+                XSSFRow row = sheet.createRow(Integer.parseInt(rowEntry.getKey()));// 创建行
                 BigDecimal hei = new BigDecimal(rowEntry.getValue() + "");
-                //转化excle行高参数1
+                // 转化excle行高参数1
                 BigDecimal excleHei1 = new BigDecimal(72);
-                //转化excle行高参数2
+                // 转化excle行高参数2
                 BigDecimal excleHei2 = new BigDecimal(96);
-                row.setHeightInPoints(hei.multiply(excleHei1).divide(excleHei2).floatValue());//行高px值
+                row.setHeightInPoints(hei.multiply(excleHei1).divide(excleHei2).floatValue());// 行高px值
                 if (columnlen != null) {
                     Map<String, Object> cloMap = columnlen.getInnerMap();
                     for (Map.Entry<String, Object> cloEntry : cloMap.entrySet()) {
                         BigDecimal wid = new BigDecimal(cloEntry.getValue().toString());
-                        //转化excle列宽参数35.7   调试后我改为33   --具体多少没有算
+                        // 转化excle列宽参数35.7   调试后我改为33   --具体多少没有算
                         BigDecimal excleWid = new BigDecimal(33);
-                        sheet.setColumnWidth(Integer.parseInt(cloEntry.getKey()), wid.multiply(excleWid).setScale(0, BigDecimal.ROUND_HALF_UP).intValue());//列宽px值
-                        row.createCell(Integer.parseInt(cloEntry.getKey()));//创建列
+                        sheet.setColumnWidth(Integer.parseInt(cloEntry.getKey()), wid.multiply(excleWid).setScale(0, BigDecimal.ROUND_HALF_UP).intValue());// 列宽px值
+                        row.createCell(Integer.parseInt(cloEntry.getKey()));// 创建列
                     }
                 }
             }
@@ -599,19 +599,19 @@ public class LuckyExcelUtils {
      * @param defaultColWidth  defaultColWidth
      */
     private static void setImages(XSSFWorkbook wb, XSSFSheet sheet, JSONObject images, JSONObject columnlenObject, JSONObject rowlenObject, int defaultRowHeight, int defaultColWidth) {
-        //图片插入
+        // 图片插入
         if (images != null) {
             Map<String, Object> map = images.getInnerMap();
             JSONObject finalColumnlenObject = columnlenObject;
             JSONObject finalRowlenObject = rowlenObject;
             for (Map.Entry<String, Object> entry : map.entrySet()) {
                 XSSFDrawing patriarch = sheet.createDrawingPatriarch();
-                //图片信息
+                // 图片信息
                 JSONObject iamgeData = (JSONObject) entry.getValue();
-                //图片的位置宽 高 距离左 距离右
+                // 图片的位置宽 高 距离左 距离右
                 JSONObject imageDefault = ((JSONObject) iamgeData.get("default"));
-                //算坐标
-                Map<String, Integer> colrowMap = getColRowMap(imageDefault, defaultRowHeight, defaultColWidth, finalColumnlenObject, finalRowlenObject);
+                // 算坐标
+                Map<String, Integer> colrowMap = getAnchorMap(imageDefault, defaultRowHeight, defaultColWidth, finalColumnlenObject, finalRowlenObject);
                 XSSFClientAnchor anchor = new XSSFClientAnchor(colrowMap.get("dx1"), colrowMap.get("dy1"), colrowMap.get("dx2"), colrowMap.get("dy2"), colrowMap.get("col1"), colrowMap.get("row1"), colrowMap.get("col2"), colrowMap.get("row2"));
                 // TODO
                 anchor.setAnchorType(ClientAnchor.AnchorType.DONT_MOVE_DO_RESIZE);
@@ -648,33 +648,36 @@ public class LuckyExcelUtils {
      */
     private static void setCellValue(XSSFWorkbook wb, XSSFSheet sheet, JSONArray celldata, JSONObject columnlen, JSONObject rowlen, int defaultRowHeight, int defaultColWidth) {
         for (int index = 0; index < celldata.size(); index++) {
-            JSONObject object = celldata.getJSONObject(index);
-            JSONObject jsonObjectValue = ((JSONObject) object.get("v"));
-            String value = "";
+            JSONObject luckyCellData = celldata.getJSONObject(index);
+
+            JSONObject v = luckyCellData.getJSONObject("v");
             String m = "";
-            if (jsonObjectValue.get("m") != null && jsonObjectValue.get("v") != null) {
-                m = jsonObjectValue.get("m") + "";
-                value = jsonObjectValue.get("v") + "";
+            if (v.getString("m") != null && v.getString("v") != null) {
+                m = v.getString("m");
             }
-            if (sheet.getRow((int) object.get("r")) == null) {
-                sheet.createRow((int) object.get("r"));
+            Integer r = luckyCellData.getInteger("r");
+            if (sheet.getRow(r) == null) {
+                sheet.createRow(r);
             }
-            XSSFRow row = sheet.getRow((int) object.get("r"));
-            if (row.getCell((int) object.get("c")) == null) {
-                row.createCell((int) object.get("c"));
+            XSSFRow row = sheet.getRow(r);
+            Integer c = luckyCellData.getInteger("c");
+            if (row.getCell(c) == null) {
+                row.createCell(c);
             }
-            XSSFCell cell = row.getCell((int) object.get("c"));
-            //设置单元格样式
-            CellStyle cellStyle = LuckyExcelUtils.createCellStyle(sheet, wb, jsonObjectValue);
-            //如果单元格内容是数值类型，涉及到金钱（金额、本、利），则设置cell的类型为数值型，设置data的类型为数值类型
-            XSSFDataFormat df = wb.createDataFormat(); // 此处设置数据格式
+            XSSFCell cell = row.getCell(c);
+            // 设置单元格样式
+            CellStyle cellStyle = createCellStyle(sheet, wb, v);
+            // 如果单元格内容是数值类型，涉及到金钱（金额、本、利），则设置cell的类型为数值型，设置data的类型为数值类型
+            // 此处设置数据格式
+            XSSFDataFormat dataFormat = wb.createDataFormat();
             boolean isNumber = false;
             boolean isString = false;
             boolean isDate = false;
             SimpleDateFormat sdf;
-            if (jsonObjectValue.get("ct") != null) {
-                cellStyle.setDataFormat(df.getFormat(((JSONObject) jsonObjectValue.get("ct")).getString("fa")));
-                String t = ((JSONObject) jsonObjectValue.get("ct")).getString("t");
+            JSONObject ct = v.getJSONObject("ct");
+            if (ct != null) {
+                cellStyle.setDataFormat(dataFormat.getFormat(ct.getString("fa")));
+                String t = ct.getString("t");
                 if ("n".equals(t)) {
                     isNumber = true;
                 }
@@ -691,7 +694,7 @@ public class LuckyExcelUtils {
                 cell.setCellType(CellType.NUMERIC);
                 cell.setCellValue(m);
             } else if (isDate) {
-                String fa = ((JSONObject) jsonObjectValue.get("ct")).getString("fa");
+                String fa = ((JSONObject) v.get("ct")).getString("fa");
                 if (fa.contains("AM/PM")) {
                     sdf = new SimpleDateFormat(fa.replaceAll("AM/PM", "aa"), Locale.ENGLISH);
                 } else {
@@ -711,28 +714,33 @@ public class LuckyExcelUtils {
                 cell.setCellType(CellType.STRING);
                 cell.setCellValue(m);
             } else {
-                //设置单元格格式
+                // 设置单元格格式
                 cell.setCellStyle(cellStyle);
                 cell.setCellValue(m);
             }
-            //设置公式
-            if (jsonObjectValue.get("f") != null) {
-                // ;
-                if (!jsonObjectValue.get("f").toString().substring(1).contains("AK")) {
-                    cell.setCellFormula(jsonObjectValue.get("f").toString().substring(1));
-                    System.out.println(jsonObjectValue.get("f").toString().substring(1));
+            // 设置公式
+            String f = v.getString("f");
+            if (f != null) {
+                if (!f.substring(1).contains("AK")) {
+                    cell.setCellFormula(f.substring(1));
                 }
             }
             // TODO 设置批注
-            if (jsonObjectValue.get("ps") != null) {
-                XSSFDrawing p = sheet.createDrawingPatriarch();
-                //后四个坐标待定
-                //前四个参数是坐标点,后四个参数是编辑和显示批注时的大小.
-                JSONObject ps = (JSONObject) jsonObjectValue.get("ps");
-                Map<String, Integer> colrowMapPS = getColRowMap(ps, defaultRowHeight, defaultColWidth, columnlen, rowlen);
-                XSSFClientAnchor anchor = new XSSFClientAnchor(colrowMapPS.get("dx1"), colrowMapPS.get("dy1"), colrowMapPS.get("dx2"), colrowMapPS.get("dy2"), colrowMapPS.get("col1"), colrowMapPS.get("row1"), colrowMapPS.get("col2"), colrowMapPS.get("row2"));
-                System.out.printf("%s,%s,%s,%s,%s,%s,%s,%s%n", colrowMapPS.get("dx1"), colrowMapPS.get("dy1"), colrowMapPS.get("dx2"), colrowMapPS.get("dy2"), colrowMapPS.get("col1"), colrowMapPS.get("row1"), colrowMapPS.get("col2"), colrowMapPS.get("row2"));
-                XSSFComment comment = p.createCellComment(anchor);
+            JSONObject ps = v.getJSONObject("ps");
+            if (ps != null) {
+                XSSFDrawing drawing = sheet.createDrawingPatriarch();
+                // 后四个坐标待定
+                // 前四个参数是坐标点,后四个参数是编辑和显示批注时的大小.
+                System.out.println("-----------------------------------------");
+                System.out.println(ps);
+                System.out.println(defaultRowHeight);
+                System.out.println(defaultColWidth);
+                System.out.println(columnlen);
+                System.out.println(rowlen);
+                Map<String, Integer> anchorMap = getAnchorMap(ps, defaultRowHeight, defaultColWidth, columnlen, rowlen);
+                XSSFClientAnchor anchor = new XSSFClientAnchor(anchorMap.get("dx1"), anchorMap.get("dy1"), anchorMap.get("dx2"), anchorMap.get("dy2"), anchorMap.get("col1"), anchorMap.get("row1"), anchorMap.get("col2"), anchorMap.get("row2"));
+                System.out.printf("%s,%s,%s,%s,%s,%s,%s,%s%n", anchorMap.get("dx1"), anchorMap.get("dy1"), anchorMap.get("dx2"), anchorMap.get("dy2"), anchorMap.get("col1"), anchorMap.get("row1"), anchorMap.get("col2"), anchorMap.get("row2"));
+                XSSFComment comment = drawing.createCellComment(anchor);
                 // 输入批注信息
                 comment.setString(new XSSFRichTextString(ps.getString("value")));
                 // 添加状态
@@ -754,11 +762,11 @@ public class LuckyExcelUtils {
         if (borderInfo == null) {
             return;
         }
-        //一定要通过 cell.getCellStyle()  不然的话之前设置的样式会丢失
-        //设置边框
+        // 一定要通过 cell.getCellStyle()  不然的话之前设置的样式会丢失
+        // 设置边框
         for (Object o : borderInfo) {
             JSONObject borderInfoObject = (JSONObject) o;
-            if ("cell".equals(borderInfoObject.get("rangeType"))) {//单个单元格
+            if ("cell".equals(borderInfoObject.get("rangeType"))) {// 单个单元格
                 JSONObject borderValueObject = borderInfoObject.getJSONObject("value");
 
                 JSONObject l = borderValueObject.getJSONObject("l");
@@ -773,34 +781,36 @@ public class LuckyExcelUtils {
                 XSSFCellStyle xssfCellStyle = cell.getCellStyle();
 
                 if (l != null) {
-                    //左边框
-                    xssfCellStyle.setBorderLeft(BORD_MAP.get((int) l.get("style")));
+                    // 左边框
+                    xssfCellStyle.setBorderLeft(BORD_MAP.get(l.getInteger("style")));
                     XSSFColor color = toColorFromString(l.getString("color"));
-                    //左边框颜色
+                    // 左边框颜色
                     xssfCellStyle.setLeftBorderColor(color);
                 }
                 if (r != null) {
-                    //右边框
-                    xssfCellStyle.setBorderRight(BORD_MAP.get((int) r.get("style")));
+                    // 右边框
+                    xssfCellStyle.setBorderRight(BORD_MAP.get(r.getInteger("style")));
                     XSSFColor color = toColorFromString(r.getString("color"));
-                    //右边框颜色
+                    // 右边框颜色
                     xssfCellStyle.setRightBorderColor(color);
                 }
                 if (t != null) {
-                    //顶部边框
-                    xssfCellStyle.setBorderTop(BORD_MAP.get((int) t.get("style")));
+                    // 顶部边框
+                    xssfCellStyle.setBorderTop(BORD_MAP.get(t.getInteger("style")));
                     XSSFColor color = toColorFromString(t.getString("color"));
-                    //顶部边框颜色
+                    // 顶部边框颜色
                     xssfCellStyle.setTopBorderColor(color);
                 }
                 if (b != null) {
-                    //底部边框
-                    xssfCellStyle.setBorderBottom(BORD_MAP.get((int) b.get("style")));
+                    // 底部边框
+                    xssfCellStyle.setBorderBottom(BORD_MAP.get(b.getInteger("style")));
                     XSSFColor color = toColorFromString(b.getString("color"));
                     xssfCellStyle.setBottomBorderColor(color);
                 }
                 cell.setCellStyle(xssfCellStyle);
-            } else if ("range".equals(borderInfoObject.get("rangeType"))) {//选区
+            }
+            // 选区
+            else if ("range".equals(borderInfoObject.get("rangeType"))) {
                 XSSFColor color = toColorFromString(borderInfoObject.getString("color"));
                 int style_ = borderInfoObject.getInteger("style");
 
@@ -819,14 +829,22 @@ public class LuckyExcelUtils {
                         }
                         XSSFCell cell = sheet.getRow(row_).getCell(col_);
                         XSSFCellStyle xssfCellStyle = cell.getCellStyle();
-                        xssfCellStyle.setBorderLeft(BORD_MAP.get(style_)); //左边框
-                        xssfCellStyle.setLeftBorderColor(color);//左边框颜色
-                        xssfCellStyle.setBorderRight(BORD_MAP.get(style_)); //右边框
-                        xssfCellStyle.setRightBorderColor(color);//右边框颜色
-                        xssfCellStyle.setBorderTop(BORD_MAP.get(style_)); //顶部边框
-                        xssfCellStyle.setTopBorderColor(color);//顶部边框颜色
-                        xssfCellStyle.setBorderBottom(BORD_MAP.get(style_)); //底部边框
-                        xssfCellStyle.setBottomBorderColor(color);//底部边框颜色 }
+                        // 左边框
+                        xssfCellStyle.setBorderLeft(BORD_MAP.get(style_));
+                        // 左边框颜色
+                        xssfCellStyle.setLeftBorderColor(color);
+                        // 右边框
+                        xssfCellStyle.setBorderRight(BORD_MAP.get(style_));
+                        // 右边框颜色
+                        xssfCellStyle.setRightBorderColor(color);
+                        // 顶部边框
+                        xssfCellStyle.setBorderTop(BORD_MAP.get(style_));
+                        // 顶部边框颜色
+                        xssfCellStyle.setTopBorderColor(color);
+                        // 底部边框
+                        xssfCellStyle.setBorderBottom(BORD_MAP.get(style_));
+                        // 底部边框颜色 }
+                        xssfCellStyle.setBottomBorderColor(color);
                         cell.setCellStyle(xssfCellStyle);
                     }
                 }
@@ -845,19 +863,19 @@ public class LuckyExcelUtils {
     private static void settDataValidation(JSONObject dataVerification, XSSFSheet sheet) {
         DataValidationHelper helper = sheet.getDataValidationHelper();
         Map<String, Integer> opTypeMap = new HashMap<>();
-        opTypeMap.put("bw", DVConstraint.OperatorType.BETWEEN);//"bw"(介于)
-        opTypeMap.put("nb", DVConstraint.OperatorType.NOT_BETWEEN);//"nb"(不介于)
-        opTypeMap.put("eq", DVConstraint.OperatorType.EQUAL);//"eq"(等于)
-        opTypeMap.put("ne", DVConstraint.OperatorType.NOT_EQUAL);//"ne"(不等于)
-        opTypeMap.put("gt", DVConstraint.OperatorType.GREATER_THAN);//"gt"(大于)
-        opTypeMap.put("lt", DVConstraint.OperatorType.LESS_THAN);//lt"(小于)
-        opTypeMap.put("gte", DVConstraint.OperatorType.GREATER_OR_EQUAL);//"gte"(大于等于)
-        opTypeMap.put("lte", DVConstraint.OperatorType.LESS_OR_EQUAL);//"lte"(小于等于)
-        opTypeMap.put("number", DVConstraint.ValidationType.ANY);//数字
-        opTypeMap.put("number_integer", DVConstraint.ValidationType.INTEGER);//整数
-        opTypeMap.put("number_decimal", DVConstraint.ValidationType.DECIMAL);//小数
-        opTypeMap.put("text_length", DVConstraint.ValidationType.TEXT_LENGTH);//文本长度
-        opTypeMap.put("date", DVConstraint.ValidationType.DATE);//日期
+        opTypeMap.put("bw", DVConstraint.OperatorType.BETWEEN);// "bw"(介于)
+        opTypeMap.put("nb", DVConstraint.OperatorType.NOT_BETWEEN);// "nb"(不介于)
+        opTypeMap.put("eq", DVConstraint.OperatorType.EQUAL);// "eq"(等于)
+        opTypeMap.put("ne", DVConstraint.OperatorType.NOT_EQUAL);// "ne"(不等于)
+        opTypeMap.put("gt", DVConstraint.OperatorType.GREATER_THAN);// "gt"(大于)
+        opTypeMap.put("lt", DVConstraint.OperatorType.LESS_THAN);// lt"(小于)
+        opTypeMap.put("gte", DVConstraint.OperatorType.GREATER_OR_EQUAL);// "gte"(大于等于)
+        opTypeMap.put("lte", DVConstraint.OperatorType.LESS_OR_EQUAL);// "lte"(小于等于)
+        opTypeMap.put("number", DVConstraint.ValidationType.ANY);// 数字
+        opTypeMap.put("number_integer", DVConstraint.ValidationType.INTEGER);// 整数
+        opTypeMap.put("number_decimal", DVConstraint.ValidationType.DECIMAL);// 小数
+        opTypeMap.put("text_length", DVConstraint.ValidationType.TEXT_LENGTH);// 文本长度
+        opTypeMap.put("date", DVConstraint.ValidationType.DATE);// 日期
         if (dataVerification != null) {
             Map<String, Object> dataVe = dataVerification.getInnerMap();
             for (Map.Entry<String, Object> dataEntry : dataVe.entrySet()) {
@@ -874,10 +892,10 @@ public class LuckyExcelUtils {
                     }
                 }
                 if ("checkbox".equals(dataVeValue.getString("type"))) {
-                    //// TODO: 2020/11/30
+                    // // TODO: 2020/11/30
                 }
                 if ("number".equals(dataVeValue.getString("type"))) {
-                    //number判断是整数还是小数
+                    // number判断是整数还是小数
                     boolean booleanValue1;
                     boolean booleanValue2;
                     booleanValue1 = PATTERN.matcher(dataVeValue.getString("value1")).matches();
@@ -897,7 +915,7 @@ public class LuckyExcelUtils {
                     dstDataValidation = helper.createValidation(dvc, dstAddrList);
                 }
                 if ("date".equals(dataVeValue.getString("type"))) {
-                    //日期
+                    // 日期
                     DataValidationConstraint dvc = new XSSFDataValidationConstraint(opTypeMap.get(dataVeValue.getString("type")), opTypeMap.get(dataVeValue.getString("type2")), dataVeValue.getString("value1"), dataVeValue.getString("value2"));
                     dstDataValidation = helper.createValidation(dvc, dstAddrList);
                 }

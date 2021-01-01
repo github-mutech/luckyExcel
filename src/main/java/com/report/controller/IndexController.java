@@ -16,11 +16,7 @@ import java.io.IOException;
 @Slf4j
 @RestController
 @RequestMapping("/equipment")
-/**
- * @author zzq
- */
 public class IndexController {
-
 
     @PostMapping("/excel/downfile")
     public void downExcelFile(@RequestParam(value = "exceldata") String exceldata, HttpServletRequest request, HttpServletResponse response) {

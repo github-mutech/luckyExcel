@@ -1,11 +1,17 @@
 package com.report.common.utils.luckyexcel;
 
+import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import lombok.Data;
 
+import java.lang.reflect.Field;
+import java.util.*;
+import java.util.stream.Collectors;
+
 @Data
 public class LuckySheet {
+    public static Set<String> fieldNames = Arrays.stream(LuckySheet.class.getDeclaredFields()).map(Field::getName).collect(Collectors.toSet());
     /**
      * 工作表名称
      */
@@ -130,4 +136,65 @@ public class LuckySheet {
      * ? 默认宽
      */
     private Integer defaultColWidth;
+
+
+    private String mirror;
+    private String dynamicArray;
+    private String images;
+    /**
+     * 数据验证配置
+     */
+    private String dataVerification;
+    private String luckysheet_selection_range;
+    /**
+     * 缩放比例
+     */
+    private String zoomRatio;
+
+    public static List<LuckySheet> parseLuckySheetList(String excelData) {
+        List<LuckySheet> luckySheets = new ArrayList<>();
+        List<JSONObject> jsonObjects = JSON.parseArray(excelData, JSONObject.class);
+        for (JSONObject jsonObject : jsonObjects) {
+            Set<String> keySet = new HashSet<>(jsonObject.keySet());
+            keySet.removeAll(fieldNames);
+            System.out.println("没有映射的key" + keySet);
+            Set<String> uselessFieldNames = new HashSet<>(fieldNames);
+            uselessFieldNames.removeAll(jsonObject.keySet());
+            System.out.println("没有用上的字段" + uselessFieldNames);
+            LuckySheet luckySheet = new LuckySheet();
+            luckySheet.setName(jsonObject.getString("name"));
+            luckySheet.setColor(jsonObject.getString("color"));
+            luckySheet.setIndex(jsonObject.getInteger("index"));
+            luckySheet.setStatus(jsonObject.getInteger("status"));
+            luckySheet.setOrder(jsonObject.getString("order"));
+            luckySheet.setHide(jsonObject.getInteger("hide"));
+            luckySheet.setRow(jsonObject.getInteger("row"));
+            luckySheet.setColumn(jsonObject.getInteger("column"));
+            luckySheet.setConfig(jsonObject.getObject("config", Config.class));
+            luckySheet.setCelldata(jsonObject.getJSONArray("celldata"));
+            luckySheet.setData(jsonObject.getJSONArray("data"));
+            luckySheet.setScrollLeft(jsonObject.getInteger("scrollLeft"));
+            luckySheet.setScrollTop(jsonObject.getInteger("scrollTop"));
+            luckySheet.setLuckysheet_select_save(jsonObject.getJSONArray("luckysheet_select_save"));
+            luckySheet.setLuckysheet_conditionformat_save(jsonObject.getJSONArray("luckysheet_conditionformat_save"));
+            luckySheet.setCalcChain(jsonObject.getJSONArray("jsonObject"));
+            luckySheet.setIsPivotTable(jsonObject.getBoolean("isPivotTable"));
+            luckySheet.setPivotTable(jsonObject.getJSONObject("pivotTable"));
+            luckySheet.setFilter_select(jsonObject.getJSONObject("filter_select"));
+            luckySheet.setFilter(jsonObject.getJSONObject("filter"));
+            luckySheet.setLuckysheet_alternateformat_save(jsonObject.getJSONArray("luckysheet_alternateformat_save"));
+            luckySheet.setLuckysheet_alternateformat_save_modelCustom(jsonObject.getJSONArray("luckysheet_alternateformat_save_modelCustom"));
+            luckySheet.setFreezen(jsonObject.getJSONObject("freezen"));
+            luckySheet.setChart(jsonObject.getJSONArray("chart"));
+            luckySheet.setVisibledatarow(jsonObject.getJSONArray("visibledatarow"));
+            luckySheet.setVisibledatacolumn(jsonObject.getJSONArray("visibledatacolumn"));
+            luckySheet.setCh_width(jsonObject.getInteger("ch_width"));
+            luckySheet.setRh_height(jsonObject.getInteger("rh_height"));
+            luckySheet.setLoad(jsonObject.getString("load"));
+            luckySheet.setDefaultRowHeight(jsonObject.getInteger("defaultRowHeight"));
+            luckySheet.setDefaultColWidth(jsonObject.getInteger("defaultColWidth"));
+            luckySheets.add(luckySheet);
+        }
+        return luckySheets;
+    }
 }
