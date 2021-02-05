@@ -4,7 +4,6 @@ import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import org.apache.poi.hssf.usermodel.DVConstraint;
-import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.formula.eval.ErrorEval;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
@@ -13,7 +12,6 @@ import org.apache.poi.util.LocaleUtil;
 import org.apache.poi.util.Units;
 import org.apache.poi.xssf.usermodel.*;
 import org.thymeleaf.util.StringUtils;
-import sun.misc.BASE64Decoder;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -32,15 +30,19 @@ import java.util.regex.Pattern;
 
 /**
  * LuckySheet导入导出工具类
+ * 官方文档:https://mengshukeji.github.io/LuckysheetDocs/zh/guide/#%E6%95%B4%E4%BD%93%E7%BB%93%E6%9E%84
  *
  * @author h
  */
 public class LuckyExcelUtils {
 
+    /**
+     * 编码字体映射
+     */
     private static final Map<Integer, String> CODE_FONT_MAP = new HashMap<>();
     private static final Map<String, Integer> FONT_CODE_MAP = new HashMap<>();
     /**
-     * 设置边框样式map
+     * 设置边框样式映射
      */
     private static final Map<Integer, BorderStyle> BORD_MAP = new HashMap<>();
     private static final Pattern PATTERN = Pattern.compile("^[-+]?[\\d]*$");
@@ -72,39 +74,26 @@ public class LuckyExcelUtils {
      * @param request   针对火狐浏览器导出时文件名乱码的问题,也可以不传入此值
      */
     public static void exportExcel(String excelData, HttpServletRequest request, HttpServletResponse response) {
-        // 解析对象，可以参照官方文档:https://mengshukeji.github.io/LuckysheetDocs/zh/guide/#%E6%95%B4%E4%BD%93%E7%BB%93%E6%9E%84
         List<LuckySheet> luckySheets = LuckySheet.parseLuckySheetList(excelData);
         XSSFWorkbook workbook = new XSSFWorkbook();
         for (LuckySheet luckySheet : luckySheets) {
-            // 默认高
-            int defaultRowHeight = luckySheet.getDefaultRowHeight() == null ? 20 : luckySheet.getDefaultRowHeight();
-            // 默认宽
-            int defaultColWidth = luckySheet.getDefaultColWidth() == null ? 74 : luckySheet.getDefaultColWidth();
             // 读取了模板内所有sheet内容
             XSSFSheet sheet = workbook.createSheet(luckySheet.getName());
-            JSONObject columnlen = null;
-            JSONObject rowlen = null;
-            JSONArray borderInfo = null;
-            Config config = luckySheet.getConfig();
-            if (config != null) {
-                columnlen = config.getColumnlen();
-                rowlen = config.getRowlen();
-                borderInfo = config.getBorderInfo();
-            }
             // 如果这行没有了，整个公式都不会有自动计算的效果的
             sheet.setForceFormulaRecalculation(true);
             // TODO 固定行列
-            setFreezePane(sheet, luckySheet.getFreezen());
-            // 设置行高列宽
-            setCellWH(sheet, columnlen, rowlen);
-            // TODO 图片插入
-            // setImages(workbook, sheet, null, columnlen, rowlen, defaultRowHeight, defaultColWidth);
+            // setFreezePane(sheet, luckySheet.getFreezen());
+            LuckySheet.Config config = luckySheet.getConfig();
+            // 设置非默认的行高列宽
+            setCellWH(sheet, config);
+            // 所有行的位置
+            JSONArray visibledatarow = luckySheet.getVisibledatarow();
+            // 所有列的位置
+            JSONArray visibledatacolumn = luckySheet.getVisibledatacolumn();
             // 设置单元格值及格式
-            setCellValue(workbook, sheet, luckySheet.getCelldata(), columnlen, rowlen, defaultRowHeight, defaultColWidth);
-            // TODO 设置数据验证
-            // settDataValidation(luckySheet.getdataVerification, sheet);
+            setCellValue(workbook, sheet, config, visibledatarow, visibledatacolumn, luckySheet.getCelldata());
             // 设置边框
-            setBorder(borderInfo, sheet);
+            setBorder(sheet, config);
         }
         // 如果只有一个sheet那就是get(0),有多个那就对应取下标
         try {
@@ -360,26 +349,33 @@ public class LuckyExcelUtils {
 
     /**
      * 获取图片位置
-     * dx1：起始单元格的x偏移量，如例子中的255表示直线起始位置距A1单元格左侧的距离；
-     * dy1：起始单元格的y偏移量，如例子中的125表示直线起始位置距A1单元格上侧的距离；
-     * dx2：终止单元格的x偏移量，如例子中的1023表示直线起始位置距C3单元格左侧的距离；
-     * dy2：终止单元格的y偏移量，如例子中的150表示直线起始位置距C3单元格上侧的距离；
-     * col1：起始单元格列序号，从0开始计算；竖
-     * row1：起始单元格行序号，从0开始计算，如例子中col1=0,row1=0就表示起始单元格为A1；横
-     * col2：终止单元格列序号，从0开始计算；
-     * row2：终止单元格行序号，从0开始计算，如例子中col2=2,row2=2就表示起始单元格为C3；
+     * dx1：起始单元格的x偏移量
+     * dy1：起始单元格的y偏移量
+     * dx2：终止单元格的x偏移量
+     * dy2：终止单元格的y偏移量
+     * col1：起始单元格列序号
+     * row1：起始单元格行序号
+     * col2：终止单元格列序号
+     * row2：终止单元格行序号
      *
-     * @param imageDefault     imageDefault
-     * @param defaultRowHeight defaultRowHeight
-     * @param defaultColWidth  defaultColWidth
-     * @param columnlen        columnlenObject
-     * @param rowlen           rowlen
+     * @param visibledatarow    行位置
+     * @param visibledatacolumn 列位置
+     * @param ps                ps
+     * @param columnlen         columnlenObject
+     * @param rowlen            rowlen
+     * @param r                 row
+     * @param c                 column
      */
-    private static Map<String, Integer> getAnchorMap(JSONObject imageDefault, int defaultRowHeight, int defaultColWidth, JSONObject columnlen, JSONObject rowlen) {
-        int left = imageDefault.getInteger("left") == null ? 0 : imageDefault.getInteger("left");
-        int top = imageDefault.getInteger("top") == null ? 0 : imageDefault.getInteger("top");
-        int width = imageDefault.getInteger("width") == null ? 0 : imageDefault.getInteger("width");
-        int height = imageDefault.getInteger("height") == null ? 0 : imageDefault.getInteger("height");
+    private static XSSFClientAnchor getAnchor(JSONObject ps, JSONObject columnlen, JSONObject rowlen, JSONArray visibledatarow, JSONArray visibledatacolumn, Integer r, Integer c) {
+
+        int defaultRowHeight = 20;
+        int defaultColWidth = 74;
+        int rowPosition = r == 0 ? 5 : 5 + (int) visibledatarow.get(r - 1);
+        int colPosition = (int) visibledatacolumn.get(c) + 10;
+        int left = ps.getInteger("left") == null ? colPosition : ps.getInteger("left");
+        int top = ps.getInteger("top") == null ? rowPosition : ps.getInteger("top");
+        int width = ps.getInteger("width") == null ? 200 : ps.getInteger("width");
+        int height = ps.getInteger("height") == null ? 100 : ps.getInteger("height");
         // 算起始最大列
         int colMax1 = (int) Math.ceil((double) left / defaultColWidth);
         // 算起始最大行
@@ -481,7 +477,8 @@ public class LuckyExcelUtils {
             // 行高
             BigDecimal row = null;
             if (rowlen != null && rowlen.getString(Integer.toString(index)) != null) {
-                row = new BigDecimal(rowlen.getString(Integer.toString(index)));// 看当前行是否重新赋值
+                // 看当前行是否重新赋值
+                row = new BigDecimal(rowlen.getString(Integer.toString(index)));
             }
             // 算最终行
             if (row == null && dy2.compareTo(new BigDecimal(defaultRowHeight)) < 0) {
@@ -502,16 +499,19 @@ public class LuckyExcelUtils {
                 dy2 = dy2.subtract(row);
             }
         }
-        Map<String, Integer> map = new HashMap<>();
-        map.put("dx1", dx1.multiply(new BigDecimal(Units.EMU_PER_PIXEL)).setScale(0, BigDecimal.ROUND_HALF_UP).intValue());
-        map.put("dy1", dy1.multiply(new BigDecimal(Units.EMU_PER_PIXEL)).setScale(0, BigDecimal.ROUND_HALF_UP).intValue());
-        map.put("dx2", dx2.multiply(new BigDecimal(Units.EMU_PER_PIXEL)).setScale(0, BigDecimal.ROUND_HALF_UP).intValue());
-        map.put("dy2", dy2.multiply(new BigDecimal(Units.EMU_PER_PIXEL)).setScale(0, BigDecimal.ROUND_HALF_UP).intValue());
-        map.put("col1", col1);
-        map.put("row1", row1);
-        map.put("col2", col2);
-        map.put("row2", row2);
-        return map;
+        XSSFClientAnchor anchor = new XSSFClientAnchor();
+        anchor.setDx1(dx1.multiply(new BigDecimal(Units.EMU_PER_PIXEL)).setScale(0, BigDecimal.ROUND_HALF_UP).intValue());
+        anchor.setDy1(dy1.multiply(new BigDecimal(Units.EMU_PER_PIXEL)).setScale(0, BigDecimal.ROUND_HALF_UP).intValue());
+        anchor.setDx2(dx2.multiply(new BigDecimal(Units.EMU_PER_PIXEL)).setScale(0, BigDecimal.ROUND_HALF_UP).intValue());
+        anchor.setDy2(dy2.multiply(new BigDecimal(Units.EMU_PER_PIXEL)).setScale(0, BigDecimal.ROUND_HALF_UP).intValue());
+        anchor.setCol1(col1);
+        anchor.setRow1(row1);
+        anchor.setCol2(col2);
+        anchor.setRow2(row2);
+        anchor.setAnchorType(ClientAnchor.AnchorType.MOVE_AND_RESIZE);
+        System.out.printf("%s,%s,%s,%s,%s,%s,%s,%s%n", anchor.getDx1(), anchor.getDy1(), anchor.getDx2(), anchor.getDy2(),
+                anchor.getCol1(), anchor.getRow1(), anchor.getCol2(), anchor.getRow2());
+        return anchor;
     }
 
     /**
@@ -556,80 +556,35 @@ public class LuckyExcelUtils {
     /**
      * 设置非默认宽高
      *
-     * @param sheet     sheet
-     * @param columnlen columnlen
-     * @param rowlen    rowlen
+     * @param sheet  sheet
+     * @param config config
      */
-    private static void setCellWH(XSSFSheet sheet, JSONObject columnlen, JSONObject rowlen) {
+    private static void setCellWH(XSSFSheet sheet, LuckySheet.Config config) {
         // 我们都知道excel是表格，即由一行一行组成的，那么这一行在java类中就是一个XSSFRow对象，我们通过XSSFSheet对象就可以创建XSSFRow对象
         // 如：创建表格中的第一行（我们常用来做标题的行)  XSSFRow firstRow = sheet.createRow(0); 注意下标从0开始
         // 根据luckysheet创建行列
         // 创建行和列
+        JSONObject rowlen = config.getRowlen();
+        JSONObject columnlen = config.getColumnlen();
         if (rowlen != null) {
             Map<String, Object> rowMap = rowlen.getInnerMap();
             for (Map.Entry<String, Object> rowEntry : rowMap.entrySet()) {
-                XSSFRow row = sheet.createRow(Integer.parseInt(rowEntry.getKey()));// 创建行
-                BigDecimal hei = new BigDecimal(rowEntry.getValue() + "");
-                // 转化excle行高参数1
-                BigDecimal excleHei1 = new BigDecimal(72);
-                // 转化excle行高参数2
-                BigDecimal excleHei2 = new BigDecimal(96);
-                row.setHeightInPoints(hei.multiply(excleHei1).divide(excleHei2).floatValue());// 行高px值
+                // 创建行
+                XSSFRow row = sheet.createRow(Integer.parseInt(rowEntry.getKey()));
+                BigDecimal height = new BigDecimal(rowEntry.getValue() + "");
+                // 行高 px 值
+                row.setHeightInPoints(height.multiply(BigDecimal.valueOf(0.75)).floatValue());
                 if (columnlen != null) {
                     Map<String, Object> cloMap = columnlen.getInnerMap();
                     for (Map.Entry<String, Object> cloEntry : cloMap.entrySet()) {
                         BigDecimal wid = new BigDecimal(cloEntry.getValue().toString());
-                        // 转化excle列宽参数35.7   调试后我改为33   --具体多少没有算
-                        BigDecimal excleWid = new BigDecimal(33);
-                        sheet.setColumnWidth(Integer.parseInt(cloEntry.getKey()), wid.multiply(excleWid).setScale(0, BigDecimal.ROUND_HALF_UP).intValue());// 列宽px值
-                        row.createCell(Integer.parseInt(cloEntry.getKey()));// 创建列
+                        // 转化excel列宽参数35.7   调试后我改为33   --具体多少没有算
+                        BigDecimal excelWid = new BigDecimal(33);
+                        // 列宽px值
+                        sheet.setColumnWidth(Integer.parseInt(cloEntry.getKey()), wid.multiply(excelWid).setScale(0, BigDecimal.ROUND_HALF_UP).intValue());
+                        // 创建列
+                        row.createCell(Integer.parseInt(cloEntry.getKey()));
                     }
-                }
-            }
-        }
-    }
-
-    /**
-     * @param wb               wb
-     * @param sheet            sheet
-     * @param images           所有图片
-     * @param columnlenObject  columnlenObject
-     * @param rowlenObject     rowlenObject
-     * @param defaultRowHeight defaultRowHeight
-     * @param defaultColWidth  defaultColWidth
-     */
-    private static void setImages(XSSFWorkbook wb, XSSFSheet sheet, JSONObject images, JSONObject columnlenObject, JSONObject rowlenObject, int defaultRowHeight, int defaultColWidth) {
-        // 图片插入
-        if (images != null) {
-            Map<String, Object> map = images.getInnerMap();
-            JSONObject finalColumnlenObject = columnlenObject;
-            JSONObject finalRowlenObject = rowlenObject;
-            for (Map.Entry<String, Object> entry : map.entrySet()) {
-                XSSFDrawing patriarch = sheet.createDrawingPatriarch();
-                // 图片信息
-                JSONObject iamgeData = (JSONObject) entry.getValue();
-                // 图片的位置宽 高 距离左 距离右
-                JSONObject imageDefault = ((JSONObject) iamgeData.get("default"));
-                // 算坐标
-                Map<String, Integer> colrowMap = getAnchorMap(imageDefault, defaultRowHeight, defaultColWidth, finalColumnlenObject, finalRowlenObject);
-                XSSFClientAnchor anchor = new XSSFClientAnchor(colrowMap.get("dx1"), colrowMap.get("dy1"), colrowMap.get("dx2"), colrowMap.get("dy2"), colrowMap.get("col1"), colrowMap.get("row1"), colrowMap.get("col2"), colrowMap.get("row2"));
-                // TODO
-                anchor.setAnchorType(ClientAnchor.AnchorType.DONT_MOVE_DO_RESIZE);
-                BASE64Decoder decoder = new BASE64Decoder();
-                byte[] decoderBytes = new byte[0];
-                boolean flag = true;
-                try {
-                    if (iamgeData.get("src") != null) {
-                        decoderBytes = decoder.decodeBuffer(iamgeData.get("src").toString().split(";base64,")[1]);
-                        flag = iamgeData.get("src").toString().split(";base64,")[0].contains("png");
-                    }
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-                if (flag) {
-                    patriarch.createPicture(anchor, wb.addPicture(decoderBytes, HSSFWorkbook.PICTURE_TYPE_PNG));
-                } else {
-                    patriarch.createPicture(anchor, wb.addPicture(decoderBytes, HSSFWorkbook.PICTURE_TYPE_JPEG));
                 }
             }
         }
@@ -638,18 +593,16 @@ public class LuckyExcelUtils {
     /**
      * 设置单元格
      *
-     * @param wb               wb
-     * @param sheet            sheet
-     * @param celldata         celldata
-     * @param columnlen        columnlen
-     * @param rowlen           rowlen
-     * @param defaultRowHeight defaultRowHeight
-     * @param defaultColWidth  defaultColWidth
+     * @param wb       wb
+     * @param sheet    sheet
+     * @param celldata celldata
+     * @param config   config
      */
-    private static void setCellValue(XSSFWorkbook wb, XSSFSheet sheet, JSONArray celldata, JSONObject columnlen, JSONObject rowlen, int defaultRowHeight, int defaultColWidth) {
+    private static void setCellValue(XSSFWorkbook wb, XSSFSheet sheet, LuckySheet.Config config, JSONArray visibledatarow, JSONArray visibledatacolumn, JSONArray celldata) {
+        JSONObject columnlen = config.getColumnlen();
+        JSONObject rowlen = config.getRowlen();
         for (int index = 0; index < celldata.size(); index++) {
             JSONObject luckyCellData = celldata.getJSONObject(index);
-
             JSONObject v = luckyCellData.getJSONObject("v");
             String m = "";
             if (v.getString("m") != null && v.getString("v") != null) {
@@ -725,22 +678,13 @@ public class LuckyExcelUtils {
                     cell.setCellFormula(f.substring(1));
                 }
             }
-            // TODO 设置批注
+            // 设置批注
             JSONObject ps = v.getJSONObject("ps");
             if (ps != null) {
-                XSSFDrawing drawing = sheet.createDrawingPatriarch();
                 // 后四个坐标待定
                 // 前四个参数是坐标点,后四个参数是编辑和显示批注时的大小.
-                System.out.println("-----------------------------------------");
-                System.out.println(ps);
-                System.out.println(defaultRowHeight);
-                System.out.println(defaultColWidth);
-                System.out.println(columnlen);
-                System.out.println(rowlen);
-                Map<String, Integer> anchorMap = getAnchorMap(ps, defaultRowHeight, defaultColWidth, columnlen, rowlen);
-                XSSFClientAnchor anchor = new XSSFClientAnchor(anchorMap.get("dx1"), anchorMap.get("dy1"), anchorMap.get("dx2"), anchorMap.get("dy2"), anchorMap.get("col1"), anchorMap.get("row1"), anchorMap.get("col2"), anchorMap.get("row2"));
-                System.out.printf("%s,%s,%s,%s,%s,%s,%s,%s%n", anchorMap.get("dx1"), anchorMap.get("dy1"), anchorMap.get("dx2"), anchorMap.get("dy2"), anchorMap.get("col1"), anchorMap.get("row1"), anchorMap.get("col2"), anchorMap.get("row2"));
-                XSSFComment comment = drawing.createCellComment(anchor);
+                XSSFClientAnchor anchor = getAnchor(ps, columnlen, rowlen, visibledatarow, visibledatacolumn, r, c);
+                XSSFComment comment = sheet.createDrawingPatriarch().createCellComment(anchor);
                 // 输入批注信息
                 comment.setString(new XSSFRichTextString(ps.getString("value")));
                 // 添加状态
@@ -748,17 +692,17 @@ public class LuckyExcelUtils {
                 // 将批注添加到单元格对象中
                 cell.setCellComment(comment);
             }
-
         }
     }
 
     /**
      * 设置边框样式
      *
-     * @param borderInfo borderInfo
-     * @param sheet      sheet
+     * @param sheet  sheet
+     * @param config config
      */
-    private static void setBorder(JSONArray borderInfo, XSSFSheet sheet) {
+    private static void setBorder(XSSFSheet sheet, LuckySheet.Config config) {
+        JSONArray borderInfo = config.getBorderInfo();
         if (borderInfo == null) {
             return;
         }
@@ -766,7 +710,8 @@ public class LuckyExcelUtils {
         // 设置边框
         for (Object o : borderInfo) {
             JSONObject borderInfoObject = (JSONObject) o;
-            if ("cell".equals(borderInfoObject.get("rangeType"))) {// 单个单元格
+            // 单个单元格
+            if ("cell".equals(borderInfoObject.get("rangeType"))) {
                 JSONObject borderValueObject = borderInfoObject.getJSONObject("value");
 
                 JSONObject l = borderValueObject.getJSONObject("l");

@@ -128,14 +128,6 @@ public class LuckySheet {
      * 已加载过此sheet的标识
      */
     private String load;
-    /**
-     * ? 默认高
-     */
-    private Integer defaultRowHeight;
-    /**
-     * ? 默认宽
-     */
-    private Integer defaultColWidth;
 
 
     private String mirror;
@@ -191,10 +183,36 @@ public class LuckySheet {
             luckySheet.setCh_width(jsonObject.getInteger("ch_width"));
             luckySheet.setRh_height(jsonObject.getInteger("rh_height"));
             luckySheet.setLoad(jsonObject.getString("load"));
-            luckySheet.setDefaultRowHeight(jsonObject.getInteger("defaultRowHeight"));
-            luckySheet.setDefaultColWidth(jsonObject.getInteger("defaultColWidth"));
             luckySheets.add(luckySheet);
         }
         return luckySheets;
+    }
+
+    @Data
+    public static class Config {
+        /**
+         * 合并单元格设置
+         */
+        private JSONObject merge;
+        /**
+         * 每个单元格的行高
+         */
+        private JSONObject rowlen;
+        /**
+         * 每个单元格的列宽
+         */
+        private JSONObject columnlen;
+        /**
+         * 隐藏行信息
+         */
+        private JSONObject rowhidden;
+        /**
+         * 隐藏列信息
+         */
+        private JSONObject colhidden;
+        /**
+         * 单元格的边框信息
+         */
+        private JSONArray borderInfo;
     }
 }
